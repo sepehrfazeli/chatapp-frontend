@@ -1,5 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import * as signalR from '@microsoft/signalr'
+import * as yup from 'yup'
+
+// Character limits
+const NAME_MAX_LENGTH = 20
+const MESSAGE_MAX_LENGTH = 500
+const NAME_MIN_LENGTH = 2
+const MESSAGE_MIN_LENGTH = 1
+
+// validation schema
+const schema = yup.object({
+  userName: yup.string().trim().required('Name required').min(NAME_MIN_LENGTH).max(NAME_MAX_LENGTH),
+  messageInput: yup.string().trim().required('Message required').min(MESSAGE_MIN_LENGTH).max(MESSAGE_MAX_LENGTH),
+})
 
 function App() {
   const [connection, setConnection] = useState(null)
