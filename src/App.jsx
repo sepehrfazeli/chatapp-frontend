@@ -22,6 +22,7 @@ function App() {
   const [connected, setConnected] = useState(false)
   const [validationErrors, setValidationErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [userId, setUserId] = useState(null) // User ID from database
   const messagesEndRef = useRef(null)
 
   // Initialize SignalR connection
@@ -47,13 +48,22 @@ function App() {
           setConnected(false)
         })
 
-      connection.on('ReceiveMessage', (user, message, timestamp) => {
+      connection.on('ReceiveMessage', (user, message, timestamp, messageUserId) => {
         setMessages(prev => [...prev, { 
           user, 
           message, 
           timestamp,
-          id: Date.now()
+          userId: messageUserId,
+          id: Date.now() + Math.random() // random id creation
         }])
+      })
+
+      connection.on('UserNameUpdated', (oldName, newName, updatedUserId) => {
+        setMessages(prev => prev.map(msg => 
+          msg.userId === updatedUserId 
+            ? { ...msg, user: newName }
+            : msg
+        ))
       })
 
       connection.onreconnected(() => setConnected(true))
@@ -61,10 +71,41 @@ function App() {
     }
   }, [connection])
 
-  // Auto-scroll to bottom
+  // Join chat when user enters name
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const joinChat = async () => {
+      if (connection && connected && userName.trim() && !userId) {
+        try {
+          const newUserId = await connection.invoke('JoinChat', userName.trim())
+          setUserId(newUserId)
+          console.log('Joined chat with userId:', newUserId)
+        } catch (err) {
+          console.error('Failed to join chat:', err)
+        }
+      }
+    }
+    
+    joinChat()
+  }, [connection, connected, userName, userId])
+
+  // Handle name changes for existing users
+  useEffect(() => {
+    const updateName = async () => {
+      if (connection && connected && userId && userName.trim()) {
+        try {
+          await connection.invoke('UpdateUserName', userId, userName.trim())
+          console.log('Updated name to:', userName.trim())
+        } catch (err) {
+          console.error('Failed to update name:', err)
+        }
+      }
+    }
+    
+    // Only update if user has been established and name actually changed
+    if (userId) {
+      updateName()
+    }
+  }, [connection, connected, userId, userName])
 
 
 
@@ -81,15 +122,15 @@ function App() {
   }
 
   const sendMessage = async () => {
-    console.log('sendMessage called', { isSubmitting, connected, userName: userName.trim(), messageInput: messageInput.trim() })
+    console.log('sendMessage called', { isSubmitting, connected, userId, messageInput: messageInput.trim() })
     
-    if (isSubmitting || !connected || !(await validate())) return
+    if (isSubmitting || !connected || !userId || !(await validate())) return
     
     setIsSubmitting(true)
     console.log('Starting to send message...')
     
     try {
-      await connection.invoke('SendMessage', userName.trim(), messageInput.trim())
+      await connection.invoke('SendMessage', userId, messageInput.trim())
       setMessageInput('')
       console.log('Message sent successfully')
     } catch (err) {
@@ -138,18 +179,18 @@ function App() {
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.user === userName.trim() ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${msg.userId === userId ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className="max-w-xs lg:max-w-md relative group">
                       <div
                         className={`px-4 py-3 rounded-2xl shadow-lg border transition-transform duration-200 hover:scale-105 ${
-                          msg.user === userName.trim()
+                          msg.userId === userId
                             ? 'bg-blue-600 text-white rounded-br-md border-blue-300'
                             : 'bg-gray-600 text-white rounded-bl-md border-gray-400'
                         }`}
                       >
                         <div className="text-xs opacity-75 mb-1 font-medium">
-                          {msg.user} {msg.user === userName.trim() ? '(You)' : ''}
+                          {msg.user} {msg.userId === userId ? '(You)' : ''}
                           {msg.timestamp && (
                             <span className="ml-2 opacity-60">{msg.timestamp}</span>
                           )}
@@ -159,7 +200,7 @@ function App() {
                       
                       <div
                         className={`absolute top-4 w-3 h-3 transform rotate-45 ${
-                          msg.user === userName.trim()
+                          msg.userId === userId
                             ? 'right-0 translate-x-1 bg-blue-600'
                             : 'left-0 -translate-x-1 bg-gray-600'
                         }`}
@@ -209,7 +250,7 @@ function App() {
                   
                   <button
                     onClick={sendMessage}
-                    disabled={!userName.trim() || !messageInput.trim() || !connected}
+                    disabled={!userName.trim() || !messageInput.trim() || !connected || !userId}
                     className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
                   >
                     {isSubmitting ? 'Sending...' : 'Send 🚀'}
