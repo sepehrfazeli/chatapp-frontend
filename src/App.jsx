@@ -27,8 +27,16 @@ function App() {
 
   // Initialize SignalR connection
   useEffect(() => {
+    // running on Azure Container Apps
+    const isAzure = window.location.hostname.includes('azurecontainerapps.io')
+    const backendUrl = isAzure 
+      ? 'https://sepehr-chatapp-backend.happyforest-d52b3acf.westeurope.azurecontainerapps.io'
+      : 'http://localhost:5002'
+    
+    console.log('Backend URL:', backendUrl)
+    
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5002/chatHub')
+      .withUrl(`${backendUrl}/chatHub`)
       .withAutomaticReconnect()
       .build()
 
