@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Custom CSS for better visibility */
+.bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
+}
+
+/* Fallback colors for message backgrounds */
+.msg-bg-1 { background: linear-gradient(135deg, #fce7f3 0%, #e879f9 100%); }
+.msg-bg-2 { background: linear-gradient(135deg, #dbeafe 0%, #06b6d4 100%); }
+.msg-bg-3 { background: linear-gradient(135deg, #d1fae5 0%, #10b981 100%); }
+.msg-bg-4 { background: linear-gradient(135deg, #fed7aa 0%, #f97316 100%); }
+.msg-bg-5 { background: linear-gradient(135deg, #fecaca 0%, #ef4444 100%); }
+.msg-bg-6 { background: linear-gradient(135deg, #e0e7ff 0%, #8b5cf6 100%); }
+.msg-bg-7 { background: linear-gradient(135deg, #ccfbf1 0%, #14b8a6 100%); }
+.msg-bg-8 { background: linear-gradient(135deg, #fed7aa 0%, #dc2626 100%); }
+.msg-bg-9 { background: linear-gradient(135deg, #f3e8ff 0%, #ec4899 100%); }
+.msg-bg-10 { background: linear-gradient(135deg, #cffafe 0%, #3b82f6 100%); }
