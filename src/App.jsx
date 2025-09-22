@@ -20,6 +20,8 @@ function App() {
   const [userName, setUserName] = useState('')
   const [messageInput, setMessageInput] = useState('')
   const [connected, setConnected] = useState(false)
+  const [validationErrors, setValidationErrors] = useState({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const messagesEndRef = useRef(null)
 
   // Initialize SignalR connection
@@ -45,10 +47,11 @@ function App() {
           setConnected(false)
         })
 
-      connection.on('ReceiveMessage', (user, message) => {
+      connection.on('ReceiveMessage', (user, message, timestamp) => {
         setMessages(prev => [...prev, { 
           user, 
           message, 
+          timestamp,
           id: Date.now()
         }])
       })
@@ -63,21 +66,43 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+
+
+  // validation
+  const validate = async () => {
+    try {
+      await schema.validate({ userName, messageInput })
+      setValidationErrors({})
+      return true
+    } catch (err) {
+      setValidationErrors({ error: err.message })
+      return false
+    }
+  }
+
   const sendMessage = async () => {
-    if (messageInput.trim() && userName.trim() && connection) {
-      try {
-        await connection.invoke('SendMessage', userName.trim(), messageInput)
-        setMessageInput('')
-      } catch (err) {
-        console.error('Send failed: ', err)
-      }
+    console.log('sendMessage called', { isSubmitting, connected, userName: userName.trim(), messageInput: messageInput.trim() })
+    
+    if (isSubmitting || !connected || !(await validate())) return
+    
+    setIsSubmitting(true)
+    console.log('Starting to send message...')
+    
+    try {
+      await connection.invoke('SendMessage', userName.trim(), messageInput.trim())
+      setMessageInput('')
+      console.log('Message sent successfully')
+    } catch (err) {
+      console.error('Send failed:', err)
+      setValidationErrors({ error: 'Send failed' })
+    } finally {
+      setIsSubmitting(false)
+      console.log('isSubmitting set to false')
     }
   }
 
   const handleKeyPress = (e, action) => {
-    if (e.key === 'Enter') {
-      action()
-    }
+    if (e.key === 'Enter') action()
   }
 
   // Chat interface
@@ -125,6 +150,9 @@ function App() {
                       >
                         <div className="text-xs opacity-75 mb-1 font-medium">
                           {msg.user} {msg.user === userName.trim() ? '(You)' : ''}
+                          {msg.timestamp && (
+                            <span className="ml-2 opacity-60">{msg.timestamp}</span>
+                          )}
                         </div>
                         <div className="break-words">{msg.message}</div>
                       </div>
@@ -146,32 +174,54 @@ function App() {
 
           <div className="p-4 border-t border-gray-200 bg-white/80 backdrop-blur-sm rounded-b-xl">
             <div className="space-y-3">
-              <div className="flex space-x-3">
-                <input
-                  type="text"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                  placeholder="Your name..."
-                  className="w-32 px-3 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 bg-white/90"
-                  maxLength="20"
-                />
-                <span className="flex items-center text-gray-600 font-medium">says:</span>
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={(e) => handleKeyPress(e, sendMessage)}
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 bg-white/90"
-                  maxLength="500"
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={!messageInput.trim() || !userName.trim() || !connected}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
-                >
-                  Send 🚀
-                </button>
+              <div>
+                <div className="flex space-x-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value.slice(0, NAME_MAX_LENGTH))}
+                      placeholder="Your name..."
+                      className="w-32 px-3 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 bg-white/90"
+                      maxLength={NAME_MAX_LENGTH}
+                    />
+                    <div className="absolute -bottom-5 left-0 text-xs text-gray-500">
+                      {userName.length}/{NAME_MAX_LENGTH}
+                    </div>
+                  </div>
+                  
+                  <span className="flex items-center text-gray-600 font-medium">says:</span>
+                  
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value.slice(0, MESSAGE_MAX_LENGTH))}
+                      onKeyDown={(e) => handleKeyPress(e, sendMessage)}
+                      placeholder="Type your message..."
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 bg-white/90"
+                      maxLength={MESSAGE_MAX_LENGTH}
+                    />
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-500">
+                      {messageInput.length}/{MESSAGE_MAX_LENGTH}
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={sendMessage}
+                    disabled={!userName.trim() || !messageInput.trim() || !connected}
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    {isSubmitting ? 'Sending...' : 'Send 🚀'}
+                  </button>
+                </div>
+                
+                {/* Simple error display */}
+                {validationErrors.error && (
+                  <div className="mt-4 text-red-600 text-sm text-center">
+                    ⚠️ {validationErrors.error}
+                  </div>
+                )}
               </div>
             </div>
             
